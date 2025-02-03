@@ -34,26 +34,48 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error initializing CSV file: {e}")
 
-    def create_products(self, data):
+    def create_products(self, products):
         """
         Добавляет новые продукты в существующий CSV-файл
+        
+        Args:
+            products (List[Product]): Список продуктов для сохранения
         """
         try:
-            # Открываем файл в режиме добавления
+            data = []
+            for product in products:
+                product_data = {
+                    "shop": product.shop,
+                    'datetime': product.datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                    'price_reg': max(product.prices),
+                    'price_promo': min(product.prices),
+                    'article': product.article,
+                    'name': product.name,
+                    'category_path': ""
+                }
+                data.append(product_data)
+
+            # Определяем заголовки, если они еще не были определены
+            if not hasattr(self, 'fieldnames'):
+                self.fieldnames = [
+                    "shop", "datetime", "price_reg", 'price_promo', 'article',
+                    'name', 'category_path'
+                ]
+
             with open(self.db_path, 'a', newline='',
                       encoding='utf-8') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=self.fieldnames)
-                # Если файл пустой, запишем заголовки
+
                 if csvfile.tell() == 0:
                     writer.writeheader()
-                # Записываем новые строки
+
                 writer.writerows(data)
+
+            return len(data)
 
         except Exception as e:
             logger.error(f"Error creating products: {e}")
-            return False
-
-        return True
+            return 0
 
     def get_products(self, limit=None):
         with open(self.db_path, 'r', newline='', encoding='utf-8') as csvfile:

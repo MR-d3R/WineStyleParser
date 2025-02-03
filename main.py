@@ -61,8 +61,9 @@ class WineStyleParser:
         # categories_links = self.parsing_processor.get_catalogue_categories()
         # logger.info(f"Найдено категорий: {categories_links}")
         # results = self.process_category_parallel(categ_link)
+        # TODO! брать из конфига
         products_list = self.parsing_processor.process_category_parallel(
-            "https://winestyle.ru/promo/")
+            "https://winestyle.ru/promo/", max_pages=10)
         for pr in products_list:
             logger.info(f"""
 ПРОДУКТ: {pr.name}
@@ -71,6 +72,8 @@ class WineStyleParser:
 ВРЕМЯ: {pr.datetime}
 --------------------------------------------
 """)
+        added_count = self.db_manager.create_products(products_list)
+        logger.info(f"Добавлено продуктов: {added_count}")
 
 
 def main():
