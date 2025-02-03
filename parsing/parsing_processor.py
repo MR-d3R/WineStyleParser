@@ -8,6 +8,7 @@ from logging import Logger
 from typing import List
 from datetime import datetime
 from models import Product
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class ParsingProcessor:
@@ -69,41 +70,115 @@ class ParsingProcessor:
 
         return full_url
 
-    def process_category(self, categ_link):
+    def process_category(self,
+                         categ_link,
+                         is_first_page=True,
+                         is_last_page=False):
+        """
+        Обрабатывает категорию товаров.
+        
+        Args:
+            categ_link: ссылка на категорию
+            is_first_page: флаг, указывающий является ли это первой страницей категории
+            is_last_page: флаг, указывающий является ли это последней известной страницей
+        """
         self.logger.info(f"Обработка категории: {categ_link}")
-        all_prod_link = self.get_all_products_in_category_link(categ_link)
-        self.logger.info(
-            f"Ссылка со всеми продуктами категории: {all_prod_link}")
-        if not all_prod_link:
-            self.logger.error(
-                "Ошибка при получении контейнера со всеми продуктами!")
-            return []
 
+        # Получаем ссылку на все продукты только для первой страницы
+        all_prod_link = categ_link
+        if is_first_page:
+            all_prod_link = self.get_all_products_in_category_link(categ_link)
+            if not all_prod_link:
+                self.logger.error(
+                    "Ошибка при получении контейнера со всеми продуктами!")
+                return []
+
+        # Получаем и обрабатываем текущую страницу
         response = self.network_connector.safe_request(all_prod_link,
                                                        method="get")
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        all_products_container = soup.find('div', class_='ws-products__list')
-        all_products_list = all_products_container.find_all(
-            "div", class_="m-catalog-item--grid")
-
+        # Обработка продуктов на текущей странице
         result_products_list = []
-        # self.logger.info(all_products_list[0])
-        for product in all_products_list:
-            prod_res = self.process_product(product)
-            if prod_res:
-                result_products_list.append(prod_res)
+        all_products_container = soup.find('div', class_='ws-products__list')
+        if all_products_container:
+            all_products_list = all_products_container.find_all(
+                "div", class_="m-catalog-item--grid")
+            for product in all_products_list:
+                prod_res = self.process_product(product)
+                if prod_res:
+                    result_products_list.append(prod_res)
 
-        pagination_pages = soup.find('div', class_='ws-pagination__pages')
-        pag_hrefs = pagination_pages.find_all("a")
-        pag_links = []
-        for pag in pag_hrefs:
-            num = pag.get_text()
-            link = all_prod_link + f"?page={num}"
-            self.logger.info(f"Ссылка пагинации: {link}")
-            pag_links.append(link)
+        # Получаем ссылки на другие страницы если это первая страница или последняя известная
+        new_pagination_links = []
+        if is_first_page or is_last_page:
+            pagination_pages = soup.find('div', class_='ws-pagination__pages')
+            if pagination_pages:
+                pag_hrefs = pagination_pages.find_all("a")
+                for pag in pag_hrefs:
+                    num = pag.get_text()
+                    link = all_prod_link.split(
+                        '?'
+                    )[0] + f"?page={num}"  # Убираем существующие параметры page
+                    new_pagination_links.append(link)
 
-        return result_products_list
+        return result_products_list, new_pagination_links
+
+    def process_category_parallel(self, categ_link, num_threads=4):
+        """
+            Параллельная обработка всех страниц категории.
+            
+            Args:
+                categ_link: ссылка на категорию
+                num_threads: количество потоков для параллельной обработки
+            """
+        # Обрабатываем первую страницу и получаем начальные ссылки на пагинацию
+        first_page_results, pagination_links = self.process_category(
+            categ_link, is_first_page=True)
+        all_results = first_page_results
+        processed_links = {categ_link
+                           }  # Множество для отслеживания обработанных ссылок
+
+        while pagination_links:
+            # Отфильтровываем уже обработанные ссылки
+            new_links = [
+                link for link in pagination_links
+                if link not in processed_links
+            ]
+            if not new_links:
+                break
+
+            # Определяем последнюю страницу в текущем наборе
+            last_link = new_links[-1]
+
+            # Создаем пул потоков для обработки страниц
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                # Запускаем обработку страниц параллельно
+                future_to_url = {}
+                for link in new_links:
+                    is_last = (link == last_link)
+                    future = executor.submit(self.process_category, link,
+                                             False, is_last)
+                    future_to_url[future] = link
+
+                # Собираем результаты и новые ссылки пагинации
+                new_pagination_links = set()
+                for future in as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        page_results, page_pagination = future.result()
+                        all_results.extend(page_results)
+                        if url == last_link:  # Только для последней страницы сохраняем новые ссылки
+                            new_pagination_links.update(page_pagination)
+                        processed_links.add(url)
+                    except Exception as e:
+                        self.logger.error(
+                            f"Ошибка при обработке страницы {url}: {e}")
+
+                # Обновляем список ссылок для следующей итерации
+                pagination_links = list(new_pagination_links - processed_links)
+
+        return all_results
 
     def get_product_link(self, product):
         name_container = product.find("div", "m-catalog-item__info")
@@ -147,7 +222,7 @@ class ParsingProcessor:
             # Ищем числа в части строки
             match = re.search(r'\d+(?:\s+\d+)*', part)
             if match is None:
-                self.logger.error(f"Не найдены числа в строке: '{part}'")
+                # self.logger.error(f"Не найдены числа в строке: '{part}'")
                 continue
 
             clean_price = re.sub(r'\s+', '', match.group())
@@ -187,6 +262,3 @@ class ParsingProcessor:
         res_product.datetime = datetime.now()
 
         return res_product
-
-    def get_next_page(self):
-        pass

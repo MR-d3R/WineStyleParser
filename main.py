@@ -60,7 +60,8 @@ class WineStyleParser:
         logger.info("Начало парсинга")
         # categories_links = self.parsing_processor.get_catalogue_categories()
         # logger.info(f"Найдено категорий: {categories_links}")
-        products_list = self.parsing_processor.process_category(
+        # results = self.process_category_parallel(categ_link)
+        products_list = self.parsing_processor.process_category_parallel(
             "https://winestyle.ru/promo/")
         for pr in products_list:
             logger.info(f"""
