@@ -1,0 +1,10 @@
+{
+    "city": "Москва",
+    "address": "г. Москва, Ленинский проспект, д. 49, стр. 5",
+    "proxy": "zpfucE:gzWLBp@185.79.132.58:8000",
+    "threads": 4,
+    "max_retries": 3,
+    "backoff_factor": 0.3,
+    "max_categories": 100,
+    "max_pages": 100
+}
