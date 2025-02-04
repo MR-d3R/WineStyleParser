@@ -19,6 +19,7 @@ class Emulator:
 
     def __init__(self, logger, config_path):
         self.base_url = "https://winestyle.ru"
+        self.cet_page_url = "https://winestyle.ru"
         self.city = "Москва"
         self.address = ""
         self.logger: Logger = logger
@@ -93,14 +94,14 @@ class Emulator:
                 for item in city_items:
                     full_text = item.text.strip()
                     ratio = SequenceMatcher(None, self.city, full_text).ratio()
-                    self.logger.info(f"Город Ratio: {ratio}")
+                    # self.logger.info(f"Город Ratio: {ratio}")
 
                     if ratio >= 0.8:
                         item.click()
                         self.logger.info(f"Выбран город: {full_text}")
                         break
-                    else:
-                        self.logger.info(f"Город {full_text} пропущен")
+                    # else:
+                    #     self.logger.info(f"Город {full_text} пропущен")
 
                 self.base_url = self.driver.current_url
 
@@ -150,7 +151,7 @@ class Emulator:
                     full_text = item.text.strip()
                     ratio = SequenceMatcher(None, self.address,
                                             full_text).ratio()
-                    self.logger.info(f"Ratio {ratio}")
+                    # self.logger.info(f"Ratio {ratio}")
                     if ratio >= 0.8:
                         item.click()
                         self.logger.info(f"Выбрана ТТ: {full_text}")
@@ -158,7 +159,21 @@ class Emulator:
                     else:
                         self.logger.info(f"Адрес {full_text} пропущен")
 
-                self.base_url = self.driver.current_url
+                sleep(1)
+                mag_button = self.driver.find_element(
+                    By.XPATH,
+                    "/html/body/div[1]/div/div[6]/div[2]/div/div/div[1]/div/div[2]/div/div/div[1]/div[2]/button"
+                )
+                mag_button.click()
+                sleep(5)
+                assortiment_button = self.driver.find_element(
+                    By.XPATH,
+                    "/html/body/div[1]/div/div[4]/div/div[1]/div[2]/div[2]/div/div[4]/button[2]"
+                )
+                assortiment_button.click()
+                sleep(5)
+
+                self.cet_page_url = self.driver.current_url
 
                 return True
 
@@ -187,6 +202,10 @@ class Emulator:
                 self.logger.critical("Не удалось определить ТТ!")
                 self._close_driver()
                 return
+
+            self.logger.info(
+                f"ТТ успешно определена, страница с её товарами: {self.cet_page_url}"
+            )
 
             self.keep_browser_open()
 
