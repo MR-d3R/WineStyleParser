@@ -13,8 +13,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class ParsingProcessor:
 
-    def __init__(self, base_url, logger, config_path):
+    def __init__(self, base_url, cat_page_url, logger, config_path):
         self.base_url = base_url
+        self.cat_page_url = cat_page_url
         self.logger: Logger = logger
 
         self.address = ""
@@ -43,7 +44,7 @@ class ParsingProcessor:
             raise
 
     def get_catalogue_categories(self):
-        categories_links = []
+        categories_links = {}
         try:
             response = self.network_connector.safe_request(self.base_url)
 
@@ -57,8 +58,9 @@ class ParsingProcessor:
             for category in abstract_categories:
                 category_link = category.find("a")
                 if category_link and 'href' in category_link.attrs:
+                    categ_text = category_link.get_text()
                     full_url = urljoin(self.base_url, category_link["href"])
-                    categories_links.append(full_url)
+                    categories_links[categ_text] = full_url
 
             return categories_links
 
@@ -149,21 +151,21 @@ class ParsingProcessor:
 
     def process_category_parallel(self,
                                   categ_link,
+                                  parse_categories: bool,
                                   page_threads=4,
-                                  product_threads=4,
                                   max_pages=10):
         """
         Параллельная обработка всех страниц категории и продуктов.
     
         Args:
             categ_link: ссылка на категорию
+            parse_categories (bool): Нужно ли парсить категори (также необходимо, если есть подкатегории)
             page_threads: количество потоков для обработки страниц
-            product_threads: количество потоков для обработки продуктов на каждой странице
             max_pages: максимальное количество страниц для обработки
         """
 
         first_page_results, pagination_links = self.process_category(
-            categ_link, is_first_page=True)
+            categ_link, is_first_page=parse_categories)
         all_results = first_page_results
         processed_links = {categ_link}
 
@@ -181,9 +183,10 @@ class ParsingProcessor:
             with ThreadPoolExecutor(max_workers=page_threads) as executor:
                 future_to_url = {}
                 for link in new_links:
+                    is_really_first_page = False
                     is_last = (link == last_link)
                     future = executor.submit(self.process_category, link,
-                                             False, is_last)
+                                             is_really_first_page, is_last)
                     future_to_url[future] = link
 
                 new_pagination_links = set()
@@ -313,11 +316,7 @@ class ParsingProcessor:
 
             variatons_href = variatons_container.find_all("a")
 
-            last_delimeter = product_link.rfind("/")
-            link = "https://winestyle.ru/products"  # На всякий случай, если неправильно ссылка будет составлена
-            if last_delimeter > -1:
-                link = product_link[:last_delimeter]
-
+            link = self.base_url + "/products"  # На всякий случай, если неправильно ссылка будет составлена
             var_links = []
             for var in variatons_href:
                 if var and 'href' in var.attrs:
@@ -359,7 +358,8 @@ class ParsingProcessor:
 
     def check_product_exists(self, link, product_page):
         exists_span = product_page.find("span", "m-productpage-price__status")
-        exists_str = exists_span.get_text().lowercase()
+        exists_str: str = exists_span.get_text()
+        exists_str = exists_str.lower()
         if "нет" in exists_str:
             self.logger.error(f"Продукта нет в наличии {link}")
             return False

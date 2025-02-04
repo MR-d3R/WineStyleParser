@@ -135,7 +135,7 @@ class Emulator:
                 shop_button.click()
                 self.logger.info("Клик по кнопке магазинов успешный")
 
-                sleep(3)
+                sleep(5)
 
                 TT_list = self.driver.find_element(
                     By.XPATH,
@@ -159,13 +159,13 @@ class Emulator:
                     else:
                         self.logger.info(f"Адрес {full_text} пропущен")
 
-                sleep(1)
+                sleep(3)
                 mag_button = self.driver.find_element(
                     By.XPATH,
                     "/html/body/div[1]/div/div[6]/div[2]/div/div/div[1]/div/div[2]/div/div/div[1]/div[2]/button"
                 )
                 mag_button.click()
-                sleep(5)
+                sleep(10)
                 assortiment_button = self.driver.find_element(
                     By.XPATH,
                     "/html/body/div[1]/div/div[4]/div/div[1]/div[2]/div[2]/div/div[4]/button[2]"
@@ -192,7 +192,7 @@ class Emulator:
             if not chosen_city:
                 self.logger.critical("Не удалось найти нужный город!")
                 self._close_driver()
-                return
+                return False, False
 
             self.logger.info(
                 f"Город успешно определён, базовая ссылка: {self.base_url}")
@@ -201,13 +201,14 @@ class Emulator:
             if not chosen_TT:
                 self.logger.critical("Не удалось определить ТТ!")
                 self._close_driver()
-                return
+                return False, False
 
             self.logger.info(
                 f"ТТ успешно определена, страница с её товарами: {self.cet_page_url}"
             )
+            self._close_driver()
 
-            self.keep_browser_open()
+            return self.base_url, self.cet_page_url
 
         except Exception as e:
             self.logger.error(f"Ошибка в start_emulation: {e}")

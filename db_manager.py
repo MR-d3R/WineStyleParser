@@ -33,12 +33,13 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error initializing CSV file: {e}")
 
-    def create_products(self, products):
+    def create_products(self, products, categ_name):
         """
         Добавляет новые продукты в существующий CSV-файл
         
         Args:
             products (List[Product]): Список продуктов для сохранения
+            categ_name str: Название категории, откуда продукты
         """
         try:
             data = []
@@ -50,7 +51,7 @@ class DBManager:
                     'price_promo': min(product.prices),
                     'article': product.article,
                     'name': product.name,
-                    'category_path': ""
+                    'category_path': categ_name
                 }
                 data.append(product_data)
 
