@@ -21,7 +21,6 @@ class DBManager:
         Инициализирует CSV-файл, создавая заголовки, если файл пустой или не существует
         """
         try:
-            # Проверяем, существует ли файл и является ли он пустым
             if not os.path.exists(self.db_path) or os.path.getsize(
                     self.db_path) == 0:
                 with open(self.db_path, 'w', newline='',
@@ -55,7 +54,6 @@ class DBManager:
                 }
                 data.append(product_data)
 
-            # Определяем заголовки, если они еще не были определены
             if not hasattr(self, 'fieldnames'):
                 self.fieldnames = [
                     "shop", "datetime", "price_reg", 'price_promo', 'article',

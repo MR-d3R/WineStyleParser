@@ -26,9 +26,8 @@ class NetworkConnector:
 
         # Настройка адаптера для повторных попыток
         retry_strategy = requests.adapters.Retry(
-            total=self.max_retries,  # Максимальное количество попыток
-            backoff_factor=self.
-            backoff_factor,  # Экспоненциальная задержка между попытками
+            total=self.max_retries,
+            backoff_factor=self.backoff_factor,
             status_forcelist=[500, 502, 503,
                               504],  # Коды ошибок для повторных попыток
         )

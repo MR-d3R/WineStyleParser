@@ -19,6 +19,9 @@ class ParsingProcessor:
 
         self.address = ""
         self.max_pages = 1000
+        self.max_threads = 1
+        self.page_threads = 1
+        self.product_threads = 1
         self._load_config(config_path)
 
         self.network_connector = NetworkConnector(logger, config_path)
@@ -30,6 +33,9 @@ class ParsingProcessor:
 
                 self.address = res_json.get('address', "")
                 self.max_pages = res_json.get('max_pages', 1000)
+                self.max_threads = res_json.get('threads', 1)
+                self.page_threads = res_json.get('page_threads', 1)
+                self.product_threads = res_json.get('product_threads', 1)
 
         except Exception as e:
             self.logger.error(
@@ -75,8 +81,7 @@ class ParsingProcessor:
     def process_category(self,
                          categ_link,
                          is_first_page=True,
-                         is_last_page=False,
-                         product_threads=4):
+                         is_last_page=False):
         """
         Обрабатывает категорию товаров.
         
@@ -88,7 +93,6 @@ class ParsingProcessor:
         """
         self.logger.info(f"Обработка категории: {categ_link}")
 
-        # Получаем ссылку на все продукты только для первой страницы
         all_prod_link = categ_link
         if is_first_page:
             all_prod_link = self.get_all_products_in_category_link(categ_link)
@@ -97,7 +101,6 @@ class ParsingProcessor:
                     "Ошибка при получении контейнера со всеми продуктами!")
                 return [], []
 
-        # Получаем и обрабатываем текущую страницу
         response = self.network_connector.safe_request(all_prod_link,
                                                        method="get")
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -109,20 +112,21 @@ class ParsingProcessor:
             all_products_list = all_products_container.find_all(
                 "div", class_="m-catalog-item--grid")
 
-            # Параллельная обработка продуктов
-            with ThreadPoolExecutor(max_workers=product_threads) as executor:
-                # Запускаем обработку продуктов параллельно
+            with ThreadPoolExecutor(
+                    max_workers=self.product_threads) as executor:
                 future_to_product = {}
                 for product in all_products_list:
                     future = executor.submit(self.process_product, product)
                     future_to_product[future] = product
-                # Собираем результаты обработки продуктов
+
                 for future in as_completed(future_to_product):
                     product = future_to_product[future]
                     try:
                         prod_res = future.result()
                         if prod_res:
-                            result_products_list.append(prod_res)
+                            for result in prod_res:
+                                if result:
+                                    result_products_list.append(result)
                     except Exception as e:
                         self.logger.error(
                             f"Ошибка при обработке продукта: {e}")
@@ -154,14 +158,13 @@ class ParsingProcessor:
             product_threads: количество потоков для обработки продуктов на каждой странице
             max_pages: максимальное количество страниц для обработки
         """
-        # Обрабатываем первую страницу и получаем начальные ссылки на пагинацию
+
         first_page_results, pagination_links = self.process_category(
-            categ_link, is_first_page=True, product_threads=product_threads)
+            categ_link, is_first_page=True)
         all_results = first_page_results
         processed_links = {categ_link}
 
-        # Счетчик обработанных страниц
-        page_count = 1  # Первая страница уже обработана
+        page_count = 1
 
         while pagination_links and page_count < max_pages:
             new_links = [
@@ -177,7 +180,7 @@ class ParsingProcessor:
                 for link in new_links:
                     is_last = (link == last_link)
                     future = executor.submit(self.process_category, link,
-                                             False, is_last, product_threads)
+                                             False, is_last)
                     future_to_url[future] = link
 
                 new_pagination_links = set()
@@ -189,7 +192,7 @@ class ParsingProcessor:
                         if url == last_link:
                             new_pagination_links.update(page_pagination)
                         processed_links.add(url)
-                        page_count += 1  # Увеличиваем счетчик страниц
+                        page_count += 1
 
                         # Прерываем, если достигли максимального числа страниц
                         if page_count >= max_pages:
@@ -197,19 +200,15 @@ class ParsingProcessor:
                     except Exception as e:
                         self.logger.error(
                             f"Ошибка при обработке страницы {url}: {e}")
-
-                    # Проверяем счетчик страниц еще раз
                     if page_count >= max_pages:
                         break
 
-                # Обновляем ссылки пагинации
+                # Обновление ссылок пагинации
                 pagination_links = list(new_pagination_links - processed_links)
 
-                # Прерываем цикл, если достигли максимума страниц
                 if page_count >= max_pages:
                     break
 
-        # Логируем общее количество обработанных страниц
         self.logger.info(f"Обработано страниц: {page_count}")
 
         return all_results
@@ -250,7 +249,6 @@ class ParsingProcessor:
             for span in article_spans:
                 span_text = span.get_text(strip=True)
                 if "Артикул:" in span_text:
-                    # Извлекаем текст после "Артикул:"
                     article = span_text.split("Артикул:")[-1].strip()
                     break
 
@@ -274,7 +272,6 @@ class ParsingProcessor:
 
             prices = []
             for part in price_parts:
-                # Ищем числа в части строки
                 match = re.search(r'\d+(?:\s+\d+)*', part)
                 if match is None:
                     # self.logger.error(f"Не найдены числа в строке: '{part}'")
@@ -301,6 +298,36 @@ class ParsingProcessor:
             self.logger.warning(f"Не удаётся получить цены продукта!! {e}")
             return False
 
+    def get_product_variations(self, product_link: str, product_page):
+        try:
+            variatons_container = product_page.find(
+                "div", class_="o-productpage-info__volume")
+            if not variatons_container:
+                self.logger.error(
+                    f"Кажется у продукта нет вариаций {product_link}")
+                return False
+
+            variatons_href = variatons_container.find_all("a")
+
+            last_delimeter = product_link.rfind("/")
+            link = "https://winestyle.ru/products"  # На всякий случай, если неправильно ссылка будет составлена
+            if last_delimeter > -1:
+                link = product_link[:last_delimeter]
+
+            var_links = []
+            for var in variatons_href:
+                if var and 'href' in var.attrs:
+                    full_url = urljoin(link, var["href"])
+                    var_links.append(full_url)
+
+            self.logger.info(f"Массив с вариациями: {var_links}")
+            return var_links
+
+        except Exception as e:
+            self.logger.warning(
+                f"Не удаётся получить ссылки на вариации продукта!! {e}")
+            return False
+
     def process_product(self, product):
         product_link = self.get_product_link(product)
 
@@ -312,6 +339,22 @@ class ParsingProcessor:
             return False
 
         response = self.network_connector.safe_request(product_link)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        processed_products = []
+        var_links = self.get_product_variations(product_link, soup)
+        if var_links:
+            for link in var_links:
+                processed_product = self.process_exact_product(link)
+                processed_products.append(processed_product)
+        else:
+            processed_product = self.process_exact_product(product_link)
+            processed_products.append(processed_product)
+
+        return processed_products
+
+    def process_exact_product(self, link):
+        response = self.network_connector.safe_request(link)
         soup = BeautifulSoup(response.text, 'html.parser')
 
         res_product = Product()

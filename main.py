@@ -25,19 +25,21 @@ class WineStyleParser:
         """Инициализация парсера с настройками из конфигурационного файла и базой данных.
 
         Args:
-            db_manager (DBManager): Путь CSV файлу для хранения данных
+            db_manager (DBManager): Объект DBManager
             config_path (str): Путь к файлу конфигурации
         """
         self.base_url = base_url
         self.db_manager = db_manager
         self.city = ""
         self.max_threads = 1
+        self.page_threads = 1
+        self.product_threads = 1
         self.max_categories = 1000
+        self.max_pages = 1000
 
         self._load_config(config_path)
         self.parsing_processor = ParsingProcessor(base_url, logger,
                                                   config_path)
-        # self.api_processor = ProductsProcessor(logger, config_path)
 
         logger.info(f"Парсер инициализирован для города {self.city}")
 
@@ -49,6 +51,9 @@ class WineStyleParser:
             self.city = res_json.get('city', "")
             self.max_threads = res_json.get('threads', 1)
             self.max_categories = res_json.get('max_categories', 1000)
+            self.max_pages = res_json.get('max_pages', 1000)
+            self.page_threads = res_json.get('page_threads', 1)
+            self.product_threads = res_json.get('product_threads', 1)
 
             logger.info(f"Конфигурация загружена из {config_path}")
 
@@ -58,22 +63,29 @@ class WineStyleParser:
 
     def Parse(self):
         logger.info("Начало парсинга")
-        # categories_links = self.parsing_processor.get_catalogue_categories()
-        # logger.info(f"Найдено категорий: {categories_links}")
-        # results = self.process_category_parallel(categ_link)
-        # TODO! брать из конфига
-        products_list = self.parsing_processor.process_category_parallel(
-            "https://winestyle.ru/promo/", max_pages=10)
-        for pr in products_list:
-            logger.info(f"""
-ПРОДУКТ: {pr.name}
-АРТИКУЛЬ: {pr.article}
-ЦЕНЫ: {pr.prices}
-ВРЕМЯ: {pr.datetime}
---------------------------------------------
-""")
-        added_count = self.db_manager.create_products(products_list)
-        logger.info(f"Добавлено продуктов: {added_count}")
+        categories_links = self.parsing_processor.get_catalogue_categories()
+        logger.info(f"Найдено категорий: {categories_links}")
+
+        categories_links = categories_links[
+            1:min(self.max_categories, len(categories_links)) +
+            1]  # Пропускаем секцию с акционными товарами и идём до кол-ва категорий указанных в конфиге. Если оно будет больше, то мы просто будем идти по всем найденным дабы не было ошибки
+        for categ_link in categories_links:
+            products_list = self.parsing_processor.process_category_parallel(
+                categ_link=categ_link,
+                page_threads=self.page_threads,
+                product_threads=self.product_threads,
+                max_pages=self.max_pages)
+
+            for pr in products_list:
+                logger.info(f"""
+    ПРОДУКТ: {pr.name}
+    АРТИКУЛЬ: {pr.article}
+    ЦЕНЫ: {pr.prices}
+    ВРЕМЯ: {pr.datetime}
+    --------------------------------------------
+    """)
+            added_count = self.db_manager.create_products(products_list)
+            logger.info(f"Добавлено продуктов: {added_count}")
 
 
 def main():
