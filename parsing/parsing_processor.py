@@ -267,6 +267,7 @@ class ParsingProcessor:
         try:
             price_container = product_page.find('div',
                                                 class_='m-productpage-price')
+
             prices_str = price_container.get_text()
 
             price_parts = [
@@ -356,9 +357,22 @@ class ParsingProcessor:
 
         return processed_products
 
+    def check_product_exists(self, link, product_page):
+        exists_span = product_page.find("span", "m-productpage-price__status")
+        exists_str = exists_span.get_text().lowercase()
+        if "нет" in exists_str:
+            self.logger.error(f"Продукта нет в наличии {link}")
+            return False
+
+        return True
+
     def process_exact_product(self, link):
         response = self.network_connector.safe_request(link)
         soup = BeautifulSoup(response.text, 'html.parser')
+
+        prod_exists = self.check_product_exists(link, soup)
+        if not prod_exists:
+            return False
 
         res_product = Product()
         pr_name = self.get_product_name(soup)
