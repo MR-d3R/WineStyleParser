@@ -118,14 +118,16 @@ class WineStyleParser:
                 1:min(self.max_categories, len(categories_items)) +
                 1]  # Пропускаем секцию с акционными товарами и идём до кол-ва категорий указанных в конфиге. Если оно будет больше, то мы просто будем идти по всем найденным дабы не было ошибки
             for category_name, categ_link in selected_categories:
-                products_list = self.get_products_from_category(categ_link)
-                self.save_products_csv(products_list, category_name)
+                products_list = self.get_products_from_category(
+                    categ_link, self.parse_categpries)
+                self.save_products_csv(products_list,
+                                       f"От Winestyle | {category_name}")
 
         else:
             products_list = self.get_products_from_category(
                 self.cat_page_url, self.parse_categpries)
-            self.save_products_csv(products_list,
-                                   f"От Winestyle|Из ТТ {self.address}| Все")
+            self.save_products_csv(
+                products_list, f"От Winestyle | Из ТТ {self.address}| Все")
 
 
 def main():

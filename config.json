@@ -1,13 +1,13 @@
 {
-    "city": "Санкт-Петербург",
-    "address": "Санкт-Петербург, 15-я линия Васильевского Острова, д. 58 ",
+    "city": "Москва",
+    "address": "г. Москва, ул. Бакунинская, д. 26-30",
     "proxy": "zpfucE:gzWLBp@185.79.132.58:8000",
     "max_retries": 3,
     "parse_categories": false,
     "threads": 4,
-    "page_threads": 4,
+    "page_threads": 3,
     "product_threads": 4,
     "backoff_factor": 0.3,
-    "max_categories": 2,
-    "max_pages": 10
+    "max_categories": 3,
+    "max_pages": 3
 }

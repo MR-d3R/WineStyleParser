@@ -91,7 +91,6 @@ class ParsingProcessor:
             categ_link: ссылка на категорию
             is_first_page: флаг, указывающий является ли это первой страницей категории
             is_last_page: флаг, указывающий является ли это последней известной страницей
-            product_threads: количество потоков для обработки продуктов
         """
         self.logger.info(f"Обработка категории: {categ_link}")
 
@@ -163,9 +162,11 @@ class ParsingProcessor:
             page_threads: количество потоков для обработки страниц
             max_pages: максимальное количество страниц для обработки
         """
-
+        need_to_get_pagination = not parse_categories
         first_page_results, pagination_links = self.process_category(
-            categ_link, is_first_page=parse_categories)
+            categ_link,
+            is_first_page=parse_categories,
+            is_last_page=need_to_get_pagination)
         all_results = first_page_results
         processed_links = {categ_link}
 
@@ -316,7 +317,7 @@ class ParsingProcessor:
 
             variatons_href = variatons_container.find_all("a")
 
-            link = self.base_url + "/products"  # На всякий случай, если неправильно ссылка будет составлена
+            link = self.base_url + "/products"
             var_links = []
             for var in variatons_href:
                 if var and 'href' in var.attrs:
@@ -392,6 +393,5 @@ class ParsingProcessor:
 
         res_product.datetime = datetime.now()
         res_product.shop = self.address
-        # TODO добавить название категории откуда получили
 
         return res_product

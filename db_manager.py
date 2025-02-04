@@ -39,7 +39,7 @@ class DBManager:
         
         Args:
             products (List[Product]): Список продуктов для сохранения
-            categ_name str: Название категории, откуда продукты
+            categ_name (str): Название категории, откуда продукты
         """
         try:
             data = []

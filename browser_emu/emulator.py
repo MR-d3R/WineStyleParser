@@ -103,7 +103,11 @@ class Emulator:
                     # else:
                     #     self.logger.info(f"Город {full_text} пропущен")
 
-                self.base_url = self.driver.current_url
+                hashtag = self.driver.current_url.find("#")
+                if hashtag > -1:
+                    self.base_url = self.driver.current_url[:hashtag]
+                else:
+                    self.base_url = self.driver.current_url
 
                 return True
 
