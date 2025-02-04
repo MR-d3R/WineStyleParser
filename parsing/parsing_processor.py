@@ -111,6 +111,9 @@ class ParsingProcessor:
         if all_products_container:
             all_products_list = all_products_container.find_all(
                 "div", class_="m-catalog-item--grid")
+            if not all_products_list:
+                all_products_list = all_products_container.find_all(
+                    "div", class_="m-catalog-item--list")
 
             with ThreadPoolExecutor(
                     max_workers=self.product_threads) as executor:
