@@ -9,5 +9,6 @@
     "product_threads": 4,
     "backoff_factor": 0.3,
     "max_categories": 3,
-    "max_pages": 3
+    "max_pages": 3,
+    "chrome_location": "C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe"
 }

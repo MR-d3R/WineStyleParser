@@ -24,6 +24,7 @@ class Emulator:
         self.address = ""
         self.logger: Logger = logger
         self.driver = None
+        self.chrome_location = "C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe"
 
         self._load_config(config_path)
         self._initiallize_driver()
@@ -39,6 +40,10 @@ class Emulator:
 
                 self.city = res_json.get('city', "Москва")
                 self.address = res_json.get('address', "")
+                self.chrome_location = res_json.get(
+                    'chrome_location',
+                    "C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe"
+                )
 
         except Exception as e:
             self.logger.error(
@@ -54,7 +59,7 @@ class Emulator:
             options.add_argument('--disable-extensions')
             options.add_argument('--no-sandbox')
 
-            options.binary_location = r"C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe"
+            options.binary_location = self.chrome_location
 
             service = Service(executable_path=chromedriver_path)
             self.driver = webdriver.Chrome(service=service, options=options)
